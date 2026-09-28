@@ -1,5 +1,5 @@
 # local realtime voice translator
-これは [audio.cpp](https://github.com/0xShug0/audio.cpp) と [llama.cpp](https://github.com/ggml-org/llama.cpp) によるローカル音声認識音声合成とローカル LLM を利用して、発話者の音声をそのまま参照音声として使うことで発話者の声質そのままで日本語で話した内容を英語音声に翻訳したり、英語で話した内容を日本語音声に翻訳するなど、２言語間でリアルタイムに翻訳するアプリケーションの概念実証プログラム(PoC)です。PySide6 で UI を実装してます。
+これは [audio.cpp](https://github.com/0xShug0/audio.cpp) と [llama.cpp](https://github.com/ggml-org/llama.cpp) によるローカル音声認識音声合成とローカル LLM を利用して、発話者の音声をそのまま参照音声として使うことで発話者の声質そのままで日本語で話した内容を英語音声に翻訳したり、英語で話した内容を日本語音声に翻訳するなど、２言語間でリアルタイムに翻訳するアプリケーションの概念実証プログラム(PoC)です。PySide6 で UI を実装してます。Gemini で作成しています。
 
 まだ、Linux と macOS で簡単なテストしかしていません。文書もまだ作成途中です。
 
