@@ -2,7 +2,7 @@
   "host": "127.0.0.1",
   "port": 8088,
   "threads": 2,
-  "backend": "hip",
+  "backend": "vulkan",
   "lazy_load": false,
   "ctx_size": 32768,
   "parallel": 1,
