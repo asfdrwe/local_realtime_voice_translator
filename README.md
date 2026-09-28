@@ -13,7 +13,7 @@ uv venv -p 3.13
 ```
 
 ## 各種サーバーの起動
-他のモデルでも動作するかもしれませんが、audio.cpp 内蔵の silero_vad で発話認識し、Qwen3 asr　で音声認識し、Qwen3 tts baseで音声合成し、gemma-4-E4B-it-Q4_K_M で翻訳することを前提としています。
+他のモデルでも動作するかもしれませんが、audio.cpp 内蔵の silero_vad で発話認識し、Qwen3 asr　で音声認識し、Qwen3 tts baseで音声合成し、gemma-4-E4B-it-Q4_K_M で翻訳することを前提としています。audio.cpp 用のモデルは [こちらから](https://huggingface.co/audio-cpp/audio.cpp-gguf)、llama.cpp用は[gemma-4-E4B-it-Q4_K_M](https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/blob/main/gemma-4-E4B-it-Q4_K_M.gguf)からダウンロードできますし、audio.cpp/tools/model_manager_v2.py を使ってダウンロードすることもできます。
 
 audio.cpp の audiocpp_server をこれらのモデルで動かせるように起動してください。[voicetranslator.json](voicetranslator.json)は models フォルダ以下に qwen3-asr-0.6b-q8_0.gguf と qwen3-tts-12hz-1.7b-base-q8_0_v2.gguf をダウンロードし、Vulkan バックエンドでポート番号 8088 で起動するようにした設定ファイルです。audio.cpp の audiocpp_server が audio.cpp/build/bin/audiocpp_server にあり、この設定ファイルを使うならば、
 
