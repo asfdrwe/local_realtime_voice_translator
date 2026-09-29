@@ -22,11 +22,11 @@ https://x.com/asfdrwe1/status/2104584655462936828
 
 次の順に実行してください。
 - install_git_uv.bat
-[uv](https://docs.astral.sh/uv/) が必要です。uv がインストールされていない場合は右クリックで管理者モードでこれを実行して git と uv をインストールするか、手動で uv をインストールしてください。git は不要ですがおまけでインストールします。
+  - [uv](https://docs.astral.sh/uv/) が必要です。uv がインストールされていない場合は右クリックで管理者モードでこれを実行して git と uv をインストールするか、手動で uv をインストールしてください。git は不要ですがおまけでインストールします。
 - setup.bat
-ダブルクリックして実行してください。local realtime voice translator に必要な python とモジュールを uv でインストールし、音声認識・音声合成サーバーの audio.cpp の本体と framework のダウンロードとローカル LLM 実行エンジンの llama.cpp のダウンロードを行います。
+  - ダブルクリックして実行してください。local realtime voice translator に必要な python とモジュールを uv でインストールし、音声認識・音声合成サーバーの audio.cpp の本体と framework のダウンロードとローカル LLM 実行エンジンの llama.cpp のダウンロードを行います。
 - modeldownload.bat
-ダブルクリックして実行してください。使用する音声認識モデル Qwen3-ASR-0.6B と音声合成モデル Qwen3-TTS-0.6B-Base と LLM gemma-4-E4B-it をダウンロードします。
+  - ダブルクリックして実行してください。使用する音声認識モデル Qwen3-ASR-0.6B と音声合成モデル Qwen3-TTS-0.6B-Base と LLM gemma-4-E4B-it をダウンロードします。
 
 ### 使い方
 run-tab.bat をダブルクリックしてください。LLM を動作させるタブと音声認識・音声合成を動作させるタブとこのプログラムを動作させるタブの３つのタブを持つターミナルと設定画面が表示されるはずです。設定画面はそのまま出しっぱなしても問題ないです。
