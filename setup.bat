@@ -12,7 +12,7 @@ set "ZIP_FILE0=%~dp0framework.tar.gz"
 set "DEST_DIR0=%~dp0"
 
 :: curl.exe で高速取得（-L: リダイレクト追従, -o: 保存先指定）
-echo Downloading llama.cpp binaries...
+echo Downloading audio.cpp framwork binaries...
 curl.exe -L -o "%ZIP_FILE0%" "%URL0%"
 
 :: 解凍処理
@@ -31,7 +31,7 @@ set "ZIP_FILE2=%~dp0audio-v0.8.2-cudart-windows-x64-cuda13.3.zip"
 set "DEST_DIR1=%~dp0audiocpp"
 
 :: curl.exe で高速取得（-L: リダイレクト追従, -o: 保存先指定）
-echo Downloading llama.cpp binaries...
+echo Downloading audio.cpp binaries...
 curl.exe -L -o "%ZIP_FILE1%" "%URL1%"
 curl.exe -L -o "%ZIP_FILE2%" "%URL2%"
 
