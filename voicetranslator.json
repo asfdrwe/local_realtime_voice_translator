@@ -5,7 +5,7 @@
   "backend": "cuda",
   "lazy_load": false,
   "ctx_size": 32768,
-  "parallel": 1,
+  "parallel": 2,
   "models": [
     {
       "id": "vad",
