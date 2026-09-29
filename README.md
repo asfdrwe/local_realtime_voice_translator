@@ -82,6 +82,16 @@ uv venv -p 3.13
 uv pip install -r requirements.txt
 ```
 
+audio.cpp の audiocpp_server と llama.cpp の llama-server が必要です。macOS なら brew でインストールできます。llama.cpp はそのまま`brew install llama.cpp`、audio.cppは次のようにインストールしてください。
+
+```
+brew tap 0xShug0/audio-cpp
+brew trust 0xShug0/audio-cpp
+brew install audio-cpp
+```
+
+Linuxの場合は各自ビルドしてください。
+
 ### 各種サーバーの起動
 他のモデルでも動作するかもしれませんが、audio.cpp 内蔵の silero_vad で発話検出し、Qwen3 asr　で音声認識し、Qwen3 tts baseで音声合成し、gemma-4-E4B-it-Q4_K_M で翻訳することを前提としています。audio.cpp 用のモデルは [こちらから](https://huggingface.co/audio-cpp/audio.cpp-gguf)、llama.cpp用は[gemma-4-E4B-it-Q4_K_M](https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF/blob/main/gemma-4-E4B-it-Q4_K_M.gguf)からダウンロードできますし、audio.cpp/tools/model_manager_v2.py を使ってダウンロードすることもできます。
 
