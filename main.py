@@ -4,9 +4,11 @@
 # To view a copy of this license, visit http://creativecommons.org
 
 import queue
+import base64
 import sys
 import os
 import json
+import math
 import time
 import wave
 import tempfile
@@ -22,6 +24,11 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox, QTextEdit, QGroupBox, QSystemTrayIcon, QMenu,
     QMessageBox, QSplitter
 )
+
+DEFAULT_VAD_THRESHOLD = 0.3
+DEFAULT_INPUT_GAIN = 2.0
+DEFAULT_MIN_DYNAMIC_REF_LEN = 3.0
+MAX_VOICE_REF_BYTES = 5 * 1024 * 1024
 
 DEFAULT_SYSTEM_PROMPT = (
     "You are a real-time speech translator. Translate the given text between {lang_a} and {lang_b}. "
@@ -80,11 +87,11 @@ class AudioCaptureWorker(QThread):
         super().__init__(parent)
         self.running = False
         self.device_index = None
-        self.vad_threshold = 0.5
+        self.vad_threshold = DEFAULT_VAD_THRESHOLD
         self.min_speech_duration = 0.2
         self.max_speech_duration = 10.0
         self.silence_timeout = 2.0  # 無音判定タイムアウト（これを超えたら会話終了）
-        self.input_gain = 1.0       # マイクゲイン倍率
+        self.input_gain = DEFAULT_INPUT_GAIN       # マイクゲイン倍率
         self.is_user_muted = False
         self.is_soft_muted = False
 
@@ -262,11 +269,10 @@ class PipelineWorker(QThread):
         self.llama_url = ""
         self.lang_a = "日本語"
         self.lang_b = "英語"
-        self.trans_mode = "自動判別"
         self.system_prompt = ""
         self.temperature = 0.0
         self.use_dynamic_ref = True
-        self.min_dynamic_ref_len = 0.5
+        self.min_dynamic_ref_len = DEFAULT_MIN_DYNAMIC_REF_LEN
         self.default_ref_path = ""
         self.default_ref_text = ""
         self.min_asr_confidence = 0.0
@@ -276,7 +282,6 @@ class PipelineWorker(QThread):
         self.llama_url = config_dict["llama_url"].rstrip('/')
         self.lang_a = config_dict["lang_a"]
         self.lang_b = config_dict["lang_b"]
-        self.trans_mode = config_dict["trans_mode"]
         self.system_prompt = config_dict["system_prompt"]
         self.temperature = config_dict["temperature"]
         self.use_dynamic_ref = config_dict["use_dynamic_ref"]
@@ -309,12 +314,14 @@ class PipelineWorker(QThread):
     def process_pipeline(self, wav_path, duration):
         # 1. ASR (音声認識)
         self.log_signal.emit("[ASR] 音声認識を実行中...")
-        asr_url = f"{self.audiocpp_url}/v1/tasks/run"
-        asr_payload = {
-            "model": "asr",
-            "request": {"audio": wav_path}
-        }
-        resp = requests.post(asr_url, json=asr_payload, timeout=10)
+        asr_url = f"{self.audiocpp_url}/v1/audio/transcriptions"
+        with open(wav_path, "rb") as audio_file:
+            resp = requests.post(
+                asr_url,
+                data={"model": "asr"},
+                files={"file": ("speech.wav", audio_file, "audio/wav")},
+                timeout=10,
+            )
         resp.raise_for_status()
         asr_result = resp.json()
         recognized_text = asr_result.get("text", "").strip()
@@ -376,16 +383,22 @@ class PipelineWorker(QThread):
 
         abs_ref_path = os.path.abspath(ref_path)
 
-        if not abs_ref_path or not os.path.exists(abs_ref_path):
+        if not ref_path or not os.path.isfile(abs_ref_path):
             self.log_signal.emit(f"[エラー] 参照音声ファイルが存在しません: {abs_ref_path}")
+            return
+
+        with open(abs_ref_path, "rb") as ref_file:
+            reference_audio = ref_file.read(MAX_VOICE_REF_BYTES + 1)
+        if not reference_audio or len(reference_audio) > MAX_VOICE_REF_BYTES:
+            self.log_signal.emit("[エラー] 参照音声は空でない5 MiB以下のファイルにしてください。")
             return
 
         tts_payload = {
             "model": "tts",
             "input": translated_text,
             "voice_ref": {
-                "type": "path",
-                "path": abs_ref_path
+                "type": "base64",
+                "data": base64.b64encode(reference_audio).decode("ascii")
             },
             "reference_text": ref_text
         }
@@ -600,7 +613,7 @@ class MainWindow(QMainWindow):
         self.spn_min_dyn_len = QDoubleSpinBox()
         self.spn_min_dyn_len.setRange(0.5, 10.0)
         self.spn_min_dyn_len.setSingleStep(0.1)
-        self.spn_min_dyn_len.setValue(3.0)
+        self.spn_min_dyn_len.setValue(DEFAULT_MIN_DYNAMIC_REF_LEN)
         lay_tts.addWidget(self.spn_min_dyn_len, 1, 1, 1, 2)
 
         lay_tts.addWidget(QLabel("デフォルト参照パス:"), 2, 0)
@@ -627,14 +640,14 @@ class MainWindow(QMainWindow):
         self.spn_vad_thresh = QDoubleSpinBox()
         self.spn_vad_thresh.setRange(0.01, 1.0)
         self.spn_vad_thresh.setSingleStep(0.05)
-        self.spn_vad_thresh.setValue(0.3)
+        self.spn_vad_thresh.setValue(DEFAULT_VAD_THRESHOLD)
         lay_vad.addWidget(self.spn_vad_thresh, 0, 1)
 
         lay_vad.addWidget(QLabel("マイクゲイン (倍率):"), 1, 0)
         self.spn_input_gain = QDoubleSpinBox()
         self.spn_input_gain.setRange(1.0, 5.0)
         self.spn_input_gain.setSingleStep(0.5)
-        self.spn_input_gain.setValue(2.0)
+        self.spn_input_gain.setValue(DEFAULT_INPUT_GAIN)
         lay_vad.addWidget(self.spn_input_gain, 1, 1)
 
         lay_vad.addWidget(QLabel("無音終了時間 (秒):"), 2, 0)
@@ -679,26 +692,21 @@ class MainWindow(QMainWindow):
         self.cmb_lang_b.addItems(["英語", "日本語", "中国語", "韓国語", "フランス語", "ドイツ語", "スペイン語"])
         lay_trans.addWidget(self.cmb_lang_b, 1, 1)
 
-        lay_trans.addWidget(QLabel("翻訳モード:"), 2, 0)
-        self.cmb_mode = QComboBox()
-        self.cmb_mode.addItems(["自動判別", "言語A -> 言語B 固定", "言語B -> 言語A 固定"])
-        lay_trans.addWidget(self.cmb_mode, 2, 1)
-
-        lay_trans.addWidget(QLabel("LLM Temperature:"), 3, 0)
+        lay_trans.addWidget(QLabel("LLM Temperature:"), 2, 0)
         self.spn_temp = QDoubleSpinBox()
         self.spn_temp.setRange(0.0, 1.0)
         self.spn_temp.setSingleStep(0.05)
         self.spn_temp.setValue(0.0)
-        lay_trans.addWidget(self.spn_temp, 3, 1)
+        lay_trans.addWidget(self.spn_temp, 2, 1)
 
-        lay_trans.addWidget(QLabel("システムプロンプト:"), 4, 0, 1, 2)
+        lay_trans.addWidget(QLabel("システムプロンプト:"), 3, 0, 1, 2)
         self.txt_sys_prompt = QTextEdit()
         self.txt_sys_prompt.setPlainText(DEFAULT_SYSTEM_PROMPT)
         self.txt_sys_prompt.setMaximumHeight(80)
-        lay_trans.addWidget(self.txt_sys_prompt, 5, 0, 1, 2)
+        lay_trans.addWidget(self.txt_sys_prompt, 4, 0, 1, 2)
 
         self.btn_reset_prompt = QPushButton("プロンプトを初期値に戻す")
-        lay_trans.addWidget(self.btn_reset_prompt, 6, 0, 1, 2)
+        lay_trans.addWidget(self.btn_reset_prompt, 5, 0, 1, 2)
 
         col2_layout.addWidget(grp_trans)
         col2_layout.addStretch()
@@ -746,11 +754,15 @@ class MainWindow(QMainWindow):
         self.cmb_output_dev.clear()
 
         devices = sd.query_devices()
+        hostapis = sd.query_hostapis()
         for idx, dev in enumerate(devices):
+            identity = json.dumps([hostapis[dev["hostapi"]]["name"], dev["name"]], ensure_ascii=False)
             if dev['max_input_channels'] > 0:
                 self.cmb_input_dev.addItem(f"[{idx}] {dev['name']}", idx)
+                self.cmb_input_dev.setItemData(self.cmb_input_dev.count() - 1, identity, Qt.UserRole + 1)
             if dev['max_output_channels'] > 0:
                 self.cmb_output_dev.addItem(f"[{idx}] {dev['name']}", idx)
+                self.cmb_output_dev.setItemData(self.cmb_output_dev.count() - 1, identity, Qt.UserRole + 1)
 
     def get_selected_output_device(self):
         return self.cmb_output_dev.currentData()
@@ -829,7 +841,6 @@ class MainWindow(QMainWindow):
             "llama_url": self.txt_llama_url.text(),
             "lang_a": self.cmb_lang_a.currentText(),
             "lang_b": self.cmb_lang_b.currentText(),
-            "trans_mode": self.cmb_mode.currentText(),
             "system_prompt": self.txt_sys_prompt.toPlainText(),
             "temperature": self.spn_temp.value(),
             "use_dynamic_ref": self.chk_dynamic_ref.isChecked(),
@@ -841,38 +852,107 @@ class MainWindow(QMainWindow):
         self.pipeline_worker.set_config(pipeline_config)
         self.log("[システム] 設定を更新・適用しました。")
 
-        self.settings.setValue("audiocpp_url", self.txt_audiocpp_url.text())
-        self.settings.setValue("llama_url", self.txt_llama_url.text())
-        self.settings.setValue("default_ref_path", self.txt_def_ref_path.text())
-        self.settings.setValue("default_ref_text", self.txt_def_ref_text.text())
-        self.settings.setValue("vad_thresh", self.spn_vad_thresh.value())
-        self.settings.setValue("input_gain", self.spn_input_gain.value())
-        self.settings.setValue("silence_timeout", self.spn_silence_timeout.value())
-        self.settings.setValue("min_speech", self.spn_min_speech.value())
-        self.settings.setValue("max_speech", self.spn_max_speech.value())
-        self.settings.setValue("min_asr_conf", self.spn_min_asr_conf.value())
+        self.save_settings()
+
+    def setting_widgets(self):
+        # マイクON/OFFはセッション限定。保存と復元で同じ対応表を使用する。
+        return {
+            "audiocpp_url": self.txt_audiocpp_url,
+            "llama_url": self.txt_llama_url,
+            "default_ref_path": self.txt_def_ref_path,
+            "default_ref_text": self.txt_def_ref_text,
+            "vad_thresh": self.spn_vad_thresh,
+            "input_gain": self.spn_input_gain,
+            "silence_timeout": self.spn_silence_timeout,
+            "min_speech": self.spn_min_speech,
+            "max_speech": self.spn_max_speech,
+            "min_asr_conf": self.spn_min_asr_conf,
+            "soft_mute": self.chk_soft_mute,
+            "use_dynamic_ref": self.chk_dynamic_ref,
+            "min_dynamic_ref_len": self.spn_min_dyn_len,
+            "lang_a": self.cmb_lang_a,
+            "lang_b": self.cmb_lang_b,
+            "temperature": self.spn_temp,
+            "system_prompt": self.txt_sys_prompt,
+            "balloon_asr": self.chk_balloon_asr,
+            "balloon_trans": self.chk_balloon_trans,
+        }
+
+    @staticmethod
+    def checked_number(value, widget):
+        number = float(value)
+        if not math.isfinite(number) or not widget.minimum() <= number <= widget.maximum():
+            raise ValueError("数値が許容範囲外です")
+        return number
+
+    def save_settings(self):
+        try:
+            values = {}
+            for key, widget in self.setting_widgets().items():
+                if isinstance(widget, QDoubleSpinBox):
+                    values[key] = self.checked_number(widget.value(), widget)
+                elif isinstance(widget, QCheckBox):
+                    values[key] = widget.isChecked()
+                elif isinstance(widget, QComboBox):
+                    values[key] = widget.currentText()
+                elif isinstance(widget, QTextEdit):
+                    values[key] = widget.toPlainText()
+                else:
+                    values[key] = widget.text()
+            for key, combo in (("input_device", self.cmb_input_dev),
+                               ("output_device", self.cmb_output_dev)):
+                values[key] = combo.currentData(Qt.UserRole + 1) or ""
+            for key, value in values.items():
+                self.settings.setValue(key, value)
+            # 廃止した翻訳モードのキーを既存の設定から除去する。
+            self.settings.remove("trans_mode")
+            self.settings.sync()
+            if self.settings.status() != QSettings.NoError:
+                raise OSError(f"QSettings: {self.settings.status()}")
+        except (TypeError, ValueError, OverflowError, OSError) as exc:
+            self.log(f"[エラー] 設定を保存できませんでした: {exc}")
+            return False
+        self.log("[システム] 設定を保存しました。")
+        return True
 
     def load_settings(self):
-        if self.settings.contains("audiocpp_url"):
-            self.txt_audiocpp_url.setText(self.settings.value("audiocpp_url"))
-        if self.settings.contains("llama_url"):
-            self.txt_llama_url.setText(self.settings.value("llama_url"))
-        if self.settings.contains("default_ref_path"):
-            self.txt_def_ref_path.setText(self.settings.value("default_ref_path"))
-        if self.settings.contains("default_ref_text"):
-            self.txt_def_ref_text.setText(self.settings.value("default_ref_text"))
-        if self.settings.contains("vad_thresh"):
-            self.spn_vad_thresh.setValue(float(self.settings.value("vad_thresh")))
-        if self.settings.contains("input_gain"):
-            self.spn_input_gain.setValue(float(self.settings.value("input_gain")))
-        if self.settings.contains("silence_timeout"):
-            self.spn_silence_timeout.setValue(float(self.settings.value("silence_timeout")))
-        if self.settings.contains("min_speech"):
-            self.spn_min_speech.setValue(float(self.settings.value("min_speech")))
-        if self.settings.contains("max_speech"):
-            self.spn_max_speech.setValue(float(self.settings.value("max_speech")))
-        if self.settings.contains("min_asr_conf"):
-            self.spn_min_asr_conf.setValue(float(self.settings.value("min_asr_conf")))
+        for key, widget in self.setting_widgets().items():
+            if not self.settings.contains(key):
+                continue
+            try:
+                value = self.settings.value(key)
+                if isinstance(widget, QDoubleSpinBox):
+                    widget.setValue(self.checked_number(value, widget))
+                elif isinstance(widget, QCheckBox):
+                    normalized = str(value).lower()
+                    if normalized not in ("true", "false", "1", "0"):
+                        raise ValueError("真偽値が不正です")
+                    widget.setChecked(normalized in ("true", "1"))
+                elif isinstance(widget, QComboBox):
+                    index = widget.findText(str(value))
+                    if index < 0:
+                        raise ValueError("選択肢が存在しません")
+                    widget.setCurrentIndex(index)
+                elif isinstance(widget, QTextEdit):
+                    widget.setPlainText(str(value))
+                else:
+                    widget.setText(str(value))
+            except (TypeError, ValueError, OverflowError) as exc:
+                self.log(f"[警告] 設定 {key} が不正なため初期値を使用します: {exc}")
+        for key, combo, direction in (("input_device", self.cmb_input_dev, 0),
+                                       ("output_device", self.cmb_output_dev, 1)):
+            if not self.settings.contains(key):
+                continue
+            identity = self.settings.value(key)
+            index = combo.findData(identity, Qt.UserRole + 1) if identity else -1
+            if index < 0:
+                # デバイス番号は再起動や接続順で変わるため、名前とホストAPIで照合する。
+                index = combo.findData(sd.default.device[direction])
+                if index < 0 and combo.count():
+                    index = 0
+                fallback = combo.itemText(index) if index >= 0 else "利用可能なデバイスなし"
+                self.log(f"[警告] 保存された {key} が見つかりません。{fallback} を使用します。")
+            combo.setCurrentIndex(index)
 
     @Slot(str)
     def log(self, msg):
