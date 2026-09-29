@@ -26,10 +26,10 @@ audio.cpp/build/bin/audiocpp_server --config voicetranslator.json
 llama.cpp の llama-server を gemma-4-E4B-it-Q4_K_M モデルを使うように起動させてください。models フォルダに gemma-4-E4B-it-Q4_K_M.gguf があり、llama.cpp の llama-server のパスが llama.cpp/build/bin/llama-server ならば
 
 ```
-llama.cpp/build/bin/llama-server -m models/gemma-4-E4B-it-Q4_K_M.gguf 
+llama.cpp/build/bin/llama-server -m models/gemma-4-E4B-it-Q4_K_M.gguf -c 4096
 ```
 
-です。
+です。llama-server が VRAM をたくさん確保して audiocpp-server が使う VRAM がなくなってしまう場合があるので、-c 4096 をつけてコンテキスト長を下げるなど llama-server の VRAM 消費を抑える設定にしてください。
 
 ## 起動
 uv でセットアップしたならば、
