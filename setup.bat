@@ -23,9 +23,9 @@ tar.exe -xvf "%ZIP_FILE0%"
 del "%ZIP_FILE0%"
 
 echo audio.cpp をセットアップします。
-set "URL1=https://github.com/0xShug0/audio.cpp/releases/download/v0.8.2/audio-v0.8.2-bin-windows-x64-cuda13.3.zip"
+set "URL1=https://github.com/0xShug0/audio.cpp/releases/download/v0.8.2-audio8-perf-hotfix/audio-v0.8.2-audio8-perf-hotfix-bin-windows-x64-cuda13.3.zip"
 set "ZIP_FILE1=%~dp0audio-v0.8.2-bin-windows-x64-cuda13.3.zip"
-set "URL2=https://github.com/0xShug0/audio.cpp/releases/download/v0.8.2/audio-v0.8.2-cudart-windows-x64-cuda13.3.zip"
+set "URL2=https://github.com/0xShug0/audio.cpp/releases/download/v0.8.2-audio8-perf-hotfix/audio-v0.8.2-audio8-perf-hotfix-cudart-windows-x64-cuda13.3.zip"
 set "ZIP_FILE2=%~dp0audio-v0.8.2-cudart-windows-x64-cuda13.3.zip"
 
 set "DEST_DIR1=%~dp0audiocpp"
