@@ -68,6 +68,7 @@ git で取得し、uv で必要な環境とモジュールのインストール�
 git clone https://github.com/asfdrwe/local_realtime_voice_translator
 cd local_realtime_voice_translator
 uv venv -p 3.13
+uv pip install -r requirements.txt
 ```
 
 ### 各種サーバーの起動
